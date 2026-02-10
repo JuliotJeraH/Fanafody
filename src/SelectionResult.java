@@ -1,14 +1,14 @@
 import java.util.List;
 
 public class SelectionResult {
-    private List<Medicine> budgetOk;
-    private List<Medicine> alternatives;
+    private Medicine[] dansBudget;
+    private Medicine[] alternatives;
 
-    public SelectionResult(List<Medicine> budgetOk, List<Medicine> alternatives) {
-        this.budgetOk = budgetOk;
+    public SelectionResult(Medicine[] dansBudget, Medicine[] alternatives) {
+        this.dansBudget = dansBudget;
         this.alternatives = alternatives;
     }
 
-    public List<Medicine> getBudgetOk() { return budgetOk; }
-    public List<Medicine> getAlternatives() { return alternatives; }
+    public Medicine[] getBudgetOk() { return dansBudget; }
+    public Medicine[] getAlternatives() { return alternatives; }
 }

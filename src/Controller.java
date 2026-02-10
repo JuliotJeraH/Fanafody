@@ -1,24 +1,63 @@
-import java.util.*;
+
 
 public class Controller {
-    private List<Medicine> medicines;
+    private Medicine[] medicaments;
 
     public Controller() {
-        this.medicines = DatabaseUtil.getSampleMedicines();
+        this.medicaments = DatabaseUtil.obtenirMedicamentsEchantillon();
     }
 
-    public SelectionResult evaluate(Map<String, Integer> patientSymptoms, double budget) {
-        List<Medicine> budgetOk = new ArrayList<>();
-        List<Medicine> alternatives = new ArrayList<>();
+    public SelectionResult evaluer(String[] nomsSymptomes, int[] valeursSymptomes, double budget) {
 
-        for (Medicine m : medicines) {
-            if (m.curesAll(patientSymptoms)) {
-                if (m.getPrice() <= budget) budgetOk.add(m);
-                else alternatives.add(m);
+        int countAbordables = 0;
+        int countAlternatives = 0;
+
+        for (int i = 0; i < medicaments.length; i++) {
+            Medicine med = medicaments[i];
+            if (med == null) continue;
+            if (med.gueritTous(nomsSymptomes, valeursSymptomes)) {
+                if (med.getPrice() <= budget) countAbordables++;
+                else countAlternatives++;
             }
         }
 
-        alternatives.sort(Comparator.comparingDouble(Medicine::getPrice));
-        return new SelectionResult(budgetOk, alternatives);
+        Medicine[] abordables = new Medicine[countAbordables];
+        Medicine[] alternatives = new Medicine[countAlternatives];
+
+        int ai = 0, bi = 0;
+        for (int i = 0; i < medicaments.length; i++) {
+            Medicine med = medicaments[i];
+            if (med == null) continue;
+            if (med.gueritTous(nomsSymptomes, valeursSymptomes)) {
+                if (med.getPrice() <= budget) {
+                    abordables[ai++] = med;
+                } else {
+                    alternatives[bi++] = med;
+                }
+            }
+        }
+
+
+        triParSelectionParPrix(alternatives);
+
+        return new SelectionResult(abordables, alternatives);
+    }
+
+
+    private void triParSelectionParPrix(Medicine[] liste) {
+        int n = liste.length;
+        for (int i = 0; i < n - 1; i++) {
+            int indexMin = i;
+            for (int j = i + 1; j < n; j++) {
+                if (liste[j].getPrice() < liste[indexMin].getPrice()) {
+                    indexMin = j;
+                }
+            }
+            if (indexMin != i) {
+                Medicine temp = liste[i];
+                liste[i] = liste[indexMin];
+                liste[indexMin] = temp;
+            }
+        }
     }
 }

@@ -1,40 +1,149 @@
 import java.util.*;
+import java.sql.*;
 
 public class DatabaseUtil {
-    // Optional: configure your MySQL JDBC here and implement real DB fetching.
-    // For the professor / demo, we provide an in-memory fallback dataset.
+    private static final String HOST = "localhost";
+    private static final String DATABASE = "medicament_db";
+    private static final String USER = "root";
+    private static final String PASSWORD = "";
+    private static final int PORT = 3306;
 
-    public static List<String> getAllSymptoms() {
-        return Arrays.asList("Temperature", "Nausea", "Diarrhea");
+    private static Connection connection = null;
+
+    // Établir la connexion MySQL
+    public static Connection getConnection() throws SQLException, ClassNotFoundException {
+        if (connection == null || connection.isClosed()) {
+            try {
+                Class.forName("com.mysql.cj.jdbc.Driver");
+                String url = "jdbc:mysql://" + HOST + ":" + PORT + "/" + DATABASE + "?useSSL=false&serverTimezone=UTC";
+                connection = DriverManager.getConnection(url, USER, PASSWORD);
+                System.out.println("Connexion MySQL réussie !");
+            } catch (ClassNotFoundException e) {
+                System.err.println("Driver MySQL non trouvé. Veuillez ajouter mysql-connector-java au classpath.");
+                throw e;
+            } catch (SQLException e) {
+                System.err.println("Erreur de connexion : " + e.getMessage());
+                throw e;
+            }
+        }
+        return connection;
     }
 
-    public static List<Medicine> getSampleMedicines() {
-        List<Medicine> meds = new ArrayList<>();
+    // Fermer la connexion
+    public static void closeConnection() {
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+                System.out.println("Connexion fermée");
+            }
+        } catch (SQLException e) {
+            System.err.println("Erreur lors de la fermeture : " + e.getMessage());
+        }
+    }
 
-        Map<String,Integer> ef1 = new HashMap<>();
-        ef1.put("Temperature", -2);
-        ef1.put("Nausea", -1);
-        ef1.put("Diarrhea", -1);
-        meds.add(new Medicine(1, "MedA", 10000.0, "Antipyretic + mild antiemetic", ef1));
 
-        Map<String,Integer> ef2 = new HashMap<>();
-        ef2.put("Temperature", 0);
-        ef2.put("Nausea", -2);
-        ef2.put("Diarrhea", -3);
-        meds.add(new Medicine(2, "MedB", 25000.0, "Strong anti-diarrheal and antiemetic", ef2));
+    public static String[] obtenirTousSymptomes() {
+        String[] symptomes = new String[0];
 
-        Map<String,Integer> ef3 = new HashMap<>();
-        ef3.put("Temperature", -1);
-        ef3.put("Nausea", 0);
-        ef3.put("Diarrhea", -1);
-        meds.add(new Medicine(3, "MedC", 40000.0, "Broad spectrum", ef3));
+        try {
+            java.sql.Connection conn = getConnection();
+            // compter les symptômes
+            Statement stmtCount = conn.createStatement();
+            ResultSet rsCount = stmtCount.executeQuery("SELECT COUNT(*) AS c FROM symptome");
+            int count = 0;
+            if (rsCount.next()) count = rsCount.getInt("c");
+            rsCount.close();
+            stmtCount.close();
 
-        Map<String,Integer> ef4 = new HashMap<>();
-        ef4.put("Temperature", -3);
-        ef4.put("Nausea", -3);
-        ef4.put("Diarrhea", -3);
-        meds.add(new Medicine(4, "MedD", 75000.0, "Complete cure (expensive)", ef4));
+            symptomes = new String[count];
 
-        return meds;
+            String sql = "SELECT nom_symptome FROM symptome ORDER BY id_symptome";
+            Statement instruction = conn.createStatement();
+            ResultSet resultat = instruction.executeQuery(sql);
+
+            int idx = 0;
+            while (resultat.next()) {
+                symptomes[idx++] = resultat.getString("nom_symptome");
+            }
+
+            resultat.close();
+            instruction.close();
+
+        } catch (SQLException | ClassNotFoundException e) {
+            System.err.println("Erreur lors de la récupération des symptômes : " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return symptomes;
+    }
+
+    public static Medicine[] obtenirMedicamentsEchantillon() {
+        Medicine[] medicaments = new Medicine[0];
+
+        try {
+            java.sql.Connection conn = getConnection();
+
+            // compter les médicaments
+            Statement stmtCount = conn.createStatement();
+            ResultSet rsCount = stmtCount.executeQuery("SELECT COUNT(*) AS c FROM medicament");
+            int count = 0;
+            if (rsCount.next()) count = rsCount.getInt("c");
+            rsCount.close();
+            stmtCount.close();
+
+            medicaments = new Medicine[count];
+
+            // Récupérer tous les médicaments
+            String sqlMedicaments = "SELECT id_medicament, nom_medicament, prix, description FROM medicament ORDER BY id_medicament";
+            Statement instructionMedicaments = conn.createStatement();
+            ResultSet resultatMedicaments = instructionMedicaments.executeQuery(sqlMedicaments);
+
+            int idxMed = 0;
+            // Pour chaque médicament, récupérer ses effets (liaisons avec symptômes)
+            while (resultatMedicaments.next()) {
+                int idMed = resultatMedicaments.getInt("id_medicament");
+                String nomMed = resultatMedicaments.getString("nom_medicament");
+                double prixMed = resultatMedicaments.getDouble("prix");
+                String descMed = resultatMedicaments.getString("description");
+
+                // compter les effets pour ce médicament
+                Statement stmtEffCount = conn.createStatement();
+                ResultSet rsEffCount = stmtEffCount.executeQuery("SELECT COUNT(*) AS c FROM effet WHERE id_medicament = " + idMed);
+                int effCount = 0;
+                if (rsEffCount.next()) effCount = rsEffCount.getInt("c");
+                rsEffCount.close();
+                stmtEffCount.close();
+
+                String[] nomsEffets = new String[effCount];
+                int[] valeursEffets = new int[effCount];
+
+                if (effCount > 0) {
+                    String sqlEffets = "SELECT s.nom_symptome, e.valeur_effet FROM effet e " +
+                                        "JOIN symptome s ON e.id_symptome = s.id_symptome " +
+                                        "WHERE e.id_medicament = " + idMed + " ORDER BY e.id_symptome";
+                    Statement instructionEffets = conn.createStatement();
+                    ResultSet resultatEffets = instructionEffets.executeQuery(sqlEffets);
+                    int ei = 0;
+                    while (resultatEffets.next()) {
+                        nomsEffets[ei] = resultatEffets.getString("nom_symptome");
+                        valeursEffets[ei] = resultatEffets.getInt("valeur_effet");
+                        ei++;
+                    }
+                    resultatEffets.close();
+                    instructionEffets.close();
+                }
+
+                medicaments[idxMed++] = new Medicine(idMed, nomMed, prixMed, descMed, nomsEffets, valeursEffets);
+            }
+
+            resultatMedicaments.close();
+            instructionMedicaments.close();
+
+        } catch (SQLException | ClassNotFoundException e) {
+            System.err.println("Erreur lors de la récupération des médicaments : " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return medicaments;
     }
 }

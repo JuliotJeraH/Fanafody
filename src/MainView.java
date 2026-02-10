@@ -9,7 +9,7 @@ public class MainView extends JFrame {
     private JPanel page2 = new JPanel(new BorderLayout());
     private JPanel page3 = new JPanel(new BorderLayout());
 
-    private Map<String, JTextField> symptomFields = new LinkedHashMap<>();
+    private java.util.Map<String, JTextField> champsSymptomes = new LinkedHashMap<>();
     private JTextField budgetField = new JTextField("20000.0", 10);
     private Controller controller = new Controller();
 
@@ -38,13 +38,15 @@ public class MainView extends JFrame {
         c.insets = new Insets(4,4,4,4);
         c.gridx = 0; c.gridy = 0; c.anchor = GridBagConstraints.WEST;
 
-        form.add(new JLabel("Symptômes (entier >=0) :"), c);
+        form.add(new JLabel("Symptômes :"), c);
         c.gridy++;
 
-        for (String s : DatabaseUtil.getAllSymptoms()) {
+        String[] symptomes = DatabaseUtil.obtenirTousSymptomes();
+        for (int i = 0; i < symptomes.length; i++) {
+            String s = symptomes[i];
             JLabel l = new JLabel(s + ": ");
             JTextField tf = new JTextField("0", 5);
-            symptomFields.put(s, tf);
+            champsSymptomes.put(s, tf);
             c.gridx = 0; form.add(l, c);
             c.gridx = 1; form.add(tf, c);
             c.gridy++;
@@ -74,7 +76,7 @@ public class MainView extends JFrame {
     }
 
     private void initPage3() {
-        page3.add(new JLabel("Alternatives (peuvent dépasser le budget)"), BorderLayout.NORTH);
+        page3.add(new JLabel("Alternatives (moin cher)"), BorderLayout.NORTH);
         page3.add(new JScrollPane(new JList<>()), BorderLayout.CENTER);
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton back = new JButton("Retour");
@@ -84,22 +86,42 @@ public class MainView extends JFrame {
     }
 
     private void onSubmit() {
-        Map<String, Integer> patient = new LinkedHashMap<>();
+        Map<String, Integer> symptomesPatient = new LinkedHashMap<>();
         try {
-            for (Map.Entry<String, JTextField> en : symptomFields.entrySet()) {
-                int val = Integer.parseInt(en.getValue().getText().trim());
-                if (val < 0) val = 0;
-                patient.put(en.getKey(), val);
+            // Construire tableaux parallèles des symptômes saisis
+            String[] noms = new String[champsSymptomes.size()];
+            int[] valeurs = new int[champsSymptomes.size()];
+            String[] keys = champsSymptomes.keySet().toArray(new String[0]);
+            for (int i = 0; i < keys.length; i++) {
+                String key = keys[i];
+                JTextField champTexte = champsSymptomes.get(key);
+                int valeur = Integer.parseInt(champTexte.getText().trim());
+                if (valeur < 0) valeur = 0;
+                noms[i] = key;
+                valeurs[i] = valeur;
             }
             double budget = Double.parseDouble(budgetField.getText().trim());
 
-            SelectionResult res = controller.evaluate(patient, budget);
+            // Validation : au moins un symptôme doit avoir une valeur > 0
+            boolean unSymptomePresent = false;
+            for (int i = 0; i < valeurs.length; i++) {
+                if (valeurs[i] > 0) {
+                    unSymptomePresent = true;
+                    break;
+                }
+            }
+            if (!unSymptomePresent) {
+                JOptionPane.showMessageDialog(this, "Au moins un symptôme doit avoir une valeur positive.", "Erreur", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-            if (!res.getBudgetOk().isEmpty()) {
-                showMedicineList(page2, res.getBudgetOk());
+            SelectionResult resultat = controller.evaluer(noms, valeurs, budget);
+
+            if (resultat.getBudgetOk().length > 0) {
+                afficherListeMedicaments(page2, resultat.getBudgetOk());
                 cards.show(mainPanel, "page2");
             } else {
-                showMedicineList(page3, res.getAlternatives());
+                afficherListeMedicaments(page3, resultat.getAlternatives());
                 cards.show(mainPanel, "page3");
             }
 
@@ -108,8 +130,12 @@ public class MainView extends JFrame {
         }
     }
 
-    private void showMedicineList(JPanel panel, java.util.List<Medicine> list) {
-        JList<String> jlist = new JList<>(list.stream().map(Medicine::toString).toArray(String[]::new));
+    private void afficherListeMedicaments(JPanel panel, Medicine[] liste) {
+        String[] donnees = new String[liste.length];
+        for (int i = 0; i < liste.length; i++) {
+            donnees[i] = liste[i].toString();
+        }
+        JList<String> jlist = new JList<>(donnees);
         panel.remove(1);
         panel.add(new JScrollPane(jlist), BorderLayout.CENTER);
         panel.revalidate();
