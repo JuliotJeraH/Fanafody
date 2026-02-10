@@ -86,7 +86,6 @@ public class MainView extends JFrame {
     }
 
     private void onSubmit() {
-        Map<String, Integer> symptomesPatient = new LinkedHashMap<>();
         try {
             // Construire tableaux parallèles des symptômes saisis
             String[] noms = new String[champsSymptomes.size()];
@@ -136,7 +135,17 @@ public class MainView extends JFrame {
             donnees[i] = liste[i].toString();
         }
         JList<String> jlist = new JList<>(donnees);
-        panel.remove(1);
+        
+       
+        Component[] comps = panel.getComponents();
+        for (int i = 0; i < comps.length; i++) {
+            Object constraint = ((BorderLayout) panel.getLayout()).getConstraints(comps[i]);
+            if (BorderLayout.CENTER.equals(constraint)) {
+                panel.remove(comps[i]);
+                break;
+            }
+        }
+        
         panel.add(new JScrollPane(jlist), BorderLayout.CENTER);
         panel.revalidate();
         panel.repaint();
